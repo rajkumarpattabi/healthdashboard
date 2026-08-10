@@ -95,6 +95,12 @@ function load(){ try{const s=localStorage.getItem(LS_KEY); if(s)return JSON.pars
   return JSON.parse(JSON.stringify(base)); }
 function persist(){ try{localStorage.setItem(LS_KEY, JSON.stringify(HD));}catch(e){} }
 function prof(id){ return HD.profiles.find(p=>p.id===(id||person)); }
+// Fix thresholds for unit-converted CBC counts (value is in 10^3–10^6/µL but the
+// report's printed range was in raw units) so status & Health Score are correct.
+function fixTh(d){ if(!d||!d.profiles)return d; d.profiles.forEach(pr=>{const M=pr.sex==='Male';
+  const fixes={'WBC Count':{type:'range',lo:4,hi:11},'Platelet Count':{type:'range',lo:150,hi:410},
+               'RBC Count':{type:'range',lo:M?4.5:3.8,hi:M?5.9:5.1}};
+  Object.entries(fixes).forEach(([n,th])=>{const p=pr.params&&pr.params[n]; if(p){p.th=th; p.target=targetStr(th);}});}); return d; }
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function lbl(iso){const [y,m,d]=iso.split('-');return `${(+d)<10?'0':''}${+d} ${MON[+m-1]} ${y}`;}
 function shortDate(iso){const [y,m]=iso.split('-');return `${MON[+m-1]} ${y}`;}
@@ -347,7 +353,7 @@ function exportBackup(){ const blob=new Blob([JSON.stringify(HD)],{type:'applica
  document.body.appendChild(a); a.click(); a.remove(); toast('Backup file downloaded'); }
 document.getElementById('jsonInput').addEventListener('change',async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f)return;
  try{ const d=JSON.parse(await f.text()); if(!d||!d.profiles||!d.dates) throw new Error('Not a HealthDashboard backup');
-   HD=d; persist(); person=HD.profiles[0].id; reportMode='latest';
+   HD=fixTh(d); persist(); person=HD.profiles[0].id; reportMode='latest';
    renderToggle(); populateReports(); renderAll(); setView('dash'); toast('Backup imported'); }
  catch(err){ alert('Import failed: '+(err.message||err)); } });
 async function pdfText(file){ if(!window.pdfjsLib) throw new Error('PDF engine not loaded (needs internet the first time).');
@@ -485,7 +491,7 @@ const Drive={ state:{connected:false,email:'',folderId:'',folderName:'HealthDash
    finally{ renderSync(); } },
  async restore(){ try{ await this.ensureFolder(); const f=await this._file(); if(!f){alert('No backup in Drive yet — tap Sync now first.');return;}
      const r=await gapi.client.drive.files.get({fileId:f.id,alt:'media'}); const data=JSON.parse(r.body);
-     if(confirm('Replace this device’s data with the Drive backup?')){ HD=data; persist(); person=HD.profiles[0].id; renderToggle();populateReports();renderAll(); toast('Restored from Drive'); } }
+     if(confirm('Replace this device’s data with the Drive backup?')){ HD=fixTh(data); persist(); person=HD.profiles[0].id; renderToggle();populateReports();renderAll(); toast('Restored from Drive'); } }
    catch(e){alert('Restore failed: '+(e.message||e));} },
  disconnect(){ if(this.token&&window.google)google.accounts.oauth2.revoke(this.token,()=>{}); this.token=null; this.state=Object.assign(this.state,{connected:false,email:''}); renderSync(); },
  _loadRestore(){ const fid=localStorage.getItem('hd_folder'); if(fid)this.state.folderId=fid;
@@ -503,6 +509,6 @@ function loadScript(src){return new Promise((res,rej)=>{if(document.querySelecto
  const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('load '+src));document.head.appendChild(s);});}
 
 /* ---------- boot ---------- */
-HD=load(); person=HD.profiles[0].id;
+HD=fixTh(load()); person=HD.profiles[0].id;
 renderToggle(); populateReports(); renderAll();
 if(CFG.GOOGLE_CLIENT_ID){ Drive._loadRestore(); }
