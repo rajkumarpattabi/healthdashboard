@@ -163,7 +163,7 @@ function inference(name,vals,th,unit,slots){const mi=measuredIdx(vals);if(mi.len
 
 /* ---------- renderers ---------- */
 function renderToggle(){document.getElementById('toggle').innerHTML=HD.profiles.map(p=>
-  `<button data-p="${p.id}" class="${p.id===person?'active':''}" onclick="setPerson('${p.id}')">${p.name} <span class="sub">${p.age} · ${p.sex}</span></button>`).join('');}
+  `<button data-p="${p.id}" class="${p.id===person?'active':''}" onclick="setPerson('${p.id}')">${p.name} <span class="sub">(${p.age}/${(p.sex||'')[0]||''})</span></button>`).join('');}
 function populateReports(){let o='<option value="latest">Combined (latest)</option>';
  const p=prof();for(let i=HD.dates.length-1;i>=0;i--){const has=Object.values(p.params).some(x=>x.values[i]!=null);if(!has)continue;
   o+=`<option value="${i}">${lbl(HD.dates[i])} · ${p.labs[i]||''}</option>`;}

@@ -1,5 +1,5 @@
 // Offline cache for HealthDashboard (mealfast-style). Bump VERSION to force refresh.
-const VERSION = 'hd-v6';
+const VERSION = 'hd-v7';
 const ASSETS = [
   './', './index.html', './style.css', './app.js', './config.js',
   './data/seed.js', './manifest.json',
