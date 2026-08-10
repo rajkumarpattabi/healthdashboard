@@ -257,32 +257,29 @@ function renderActions(){const p=prof();let html='',n=0;
 function emptyState(msg){return `<div class="empty"><div class="big">📄</div>${msg}</div>`;}
 
 /* ---------- Sync tab ---------- */
-function renderSync(){const cfgOK=CFG.GOOGLE_CLIENT_ID&&CFG.GOOGLE_API_KEY;const st=Drive.state;
+function renderSync(){const cfgOK=!!CFG.GOOGLE_CLIENT_ID;const st=Drive.state;
  let body;
  if(!cfgOK){ const inS='width:100%;margin:6px 0;padding:11px;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);color:var(--ink);font:500 12.5px var(--font)';
    body=`<div class="section" style="margin-left:2px">Set up Google Drive backup</div>
    <div class="synccard" style="padding:12px 14px">
-     <p class="muted-note" style="margin:2px 0 10px">Your data is safe on this device. To back up to Drive, create a free Google <b>OAuth Client ID</b> + <b>API key</b> (Google Cloud Console → enable Drive API &amp; Picker API — full steps in the README), then paste them here.</p>
+     <p class="muted-note" style="margin:2px 0 10px">Your data is safe on this device. To also back up to Drive, create a free Google <b>OAuth Client ID</b> (Google Cloud Console → enable Drive API — full steps in the README) and paste it here. The app makes its own <b>HealthDashboard</b> folder in your Drive.</p>
      <input id="gcId" style="${inS}" placeholder="Client ID (…apps.googleusercontent.com)" value="${CFG.GOOGLE_CLIENT_ID||''}">
-     <input id="gcKey" style="${inS}" placeholder="API key" value="${CFG.GOOGLE_API_KEY||''}">
-     <input id="gcFolder" style="${inS}" placeholder="Drive folder ID" value="${CFG.DRIVE_FOLDER_ID||''}">
+     <input id="gcKey" style="${inS}" placeholder="API key (optional — not needed)" value="${CFG.GOOGLE_API_KEY||''}">
    </div>
-   <div class="sync-actions"><button class="btn" onclick="saveGCfg()">Save keys</button></div>
-   <p class="muted-note">Also add your app’s address as an “authorised JavaScript origin” on the Client ID — e.g. <b>http://localhost:8000</b> for local testing, or your GitHub Pages URL. Everything else in the app works without Drive.</p>`; }
+   <div class="sync-actions"><button class="btn" onclick="saveGCfg()">Save</button></div>
+   <p class="muted-note">Add your app’s address as an “authorised JavaScript origin” on the Client ID — e.g. <b>http://localhost:8000</b> for local, or your GitHub Pages URL. Everything else in the app works without Drive.</p>`; }
  else if(!st.connected){ body=`<div class="sync-hero"><div class="ok" style="background:var(--surface-2);color:var(--muted)">☁</div>
-    <div class="st">Not connected</div><div class="ss">Back up to your HealthDashboard Drive folder</div></div>
+    <div class="st">Not connected</div><div class="ss">Back up to a HealthDashboard folder in your Drive</div></div>
     <div class="sync-actions"><button class="btn" onclick="Drive.connect()">Connect Google Drive</button></div>
-    <p class="muted-note">Uses the narrow <b>drive.file</b> scope — the app can only see files it creates. You’ll pick your HealthDashboard folder once.</p>`; }
- else { body=`<div class="sync-hero"><div class="ok">✓</div><div class="st">${st.folderName?('Backed up to '+st.folderName):'Connected'}</div>
-    <div class="ss">${st.last?('Last synced '+st.last):'Not synced yet'}</div></div>
+    <p class="muted-note">Uses the narrow <b>drive.file</b> scope — the app can only see the files &amp; folder it creates, nothing else in your Drive.</p>`; }
+ else { body=`<div class="sync-hero"><div class="ok">✓</div><div class="st">${st.last?('Backed up to '+st.folderName):'Connected'}</div>
+    <div class="ss">${st.last?('Last synced '+st.last):'Tap Sync now to create your backup'}</div></div>
    <div class="section" style="margin-left:2px">Connection</div>
-   <div class="synccard"><div class="kv"><span class="k">Account</span><span class="v">${st.email||'—'}</span></div>
-     <div class="kv"><span class="k">Backup folder</span><span class="v on">${st.folderName||'pick a folder →'}</span></div>
-     <div class="kv"><span class="k">Scope</span><span class="v">This app's folder only</span></div></div>
+   <div class="synccard"><div class="kv"><span class="k">Backup folder</span><span class="v on">${st.folderName} (auto)</span></div>
+     <div class="kv"><span class="k">Scope</span><span class="v">This app's files only</span></div></div>
    <div class="sync-actions">
-     ${st.folderId?'':'<button class="btn ghost" onclick="Drive.pickFolder()">Choose backup folder</button>'}
-     <button class="btn" id="syncNowBtn" onclick="Drive.syncNow()" ${st.folderId?'':'disabled'}>⟳ Sync now</button>
-     <button class="btn ghost" onclick="Drive.restore()" ${st.folderId?'':'disabled'}>⭳ Restore from Drive</button>
+     <button class="btn" id="syncNowBtn" onclick="Drive.syncNow()">⟳ Sync now</button>
+     <button class="btn ghost" onclick="Drive.restore()">⭳ Restore from Drive</button>
      <button class="btn ghost" onclick="Drive.disconnect()">Disconnect account</button></div>
    <p class="muted-note">Auto-sync runs on app open when it’s been ≥24h since the last sync. A web app can’t sync while fully closed.</p>`; }
  body+=`<div class="section" style="margin-left:2px">Local backup file</div>
@@ -432,52 +429,52 @@ function toast(msg){const t=document.createElement('div');t.textContent=msg;
  document.body.appendChild(t);setTimeout(()=>t.remove(),2600);}
 
 /* ---------- Google Drive (client-side, drive.file). Loads Google libs on demand. ---------- */
-const Drive={ state:{connected:false,email:'',folderId:CFG.DRIVE_FOLDER_ID||'',folderName:'',last:''}, token:null, _libs:false,
+// Client-side Drive backup using drive.file scope. No Picker: the app creates & uses
+// its own "HealthDashboard" folder (drive.file can always access files/folders it made).
+const Drive={ state:{connected:false,email:'',folderId:'',folderName:'HealthDashboard',last:''}, token:null, _libs:false,
  async _load(){ if(this._libs)return; await loadScript('https://accounts.google.com/gsi/client');
-   await loadScript('https://apis.google.com/js/api.js'); await new Promise(r=>gapi.load('client:picker',r));
+   await loadScript('https://apis.google.com/js/api.js'); await new Promise(r=>gapi.load('client',r));
    await gapi.client.init({}); await gapi.client.load('https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'); this._libs=true; },
- async connect(){ if(!CFG.GOOGLE_CLIENT_ID){alert('Add GOOGLE_CLIENT_ID in config.js first.');return;}
+ async connect(){ if(!CFG.GOOGLE_CLIENT_ID){alert('Add your Google Client ID first (Sync tab form).');return;}
    try{ await this._load();
      const tc=google.accounts.oauth2.initTokenClient({client_id:CFG.GOOGLE_CLIENT_ID,scope:'https://www.googleapis.com/auth/drive.file',
-       callback:(resp)=>{ this.token=resp.access_token; gapi.client.setToken({access_token:resp.access_token});
-         this.state.connected=true; this._loadRestore(); renderSync(); }});
+       callback:async (resp)=>{ if(resp&&resp.error){alert('Google sign-in error: '+resp.error);return;}
+         this.token=resp.access_token; gapi.client.setToken({access_token:resp.access_token});
+         this.state.connected=true; this._loadRestore(); renderSync();
+         try{ await this.ensureFolder(); }catch(e){} renderSync(); }});
      tc.requestAccessToken({prompt:'consent'});
    }catch(e){alert('Google connect failed: '+e);} },
- async pickFolder(){ await this._load();
-   const view=new google.picker.DocsView(google.picker.ViewId.FOLDERS).setSelectFolderEnabled(true).setMimeTypes('application/vnd.google-apps.folder');
-   const picker=new google.picker.PickerBuilder().addView(view).setOAuthToken(this.token).setDeveloperKey(CFG.GOOGLE_API_KEY)
-     .setCallback(d=>{ if(d.action===google.picker.Action.PICKED){const f=d.docs[0];this.state.folderId=f.id;this.state.folderName=f.name;renderSync();}}).build();
-   picker.setVisible(true); },
- async _file(){ // find or create the data file in folder
-   const q=`name='healthdashboard-data.json' and '${this.state.folderId}' in parents and trashed=false`;
-   const r=await gapi.client.drive.files.list({q,fields:'files(id,name)'});
-   return r.result.files[0]||null; },
- async syncNow(){ if(!this.state.folderId){this.pickFolder();return;}
-   const btn=document.getElementById('syncNowBtn'); if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span>Syncing…';}
-   try{ const body=JSON.stringify(HD); const existing=await this._file();
+ async ensureFolder(){ if(this.state.folderId) return this.state.folderId;
+   const r=await gapi.client.drive.files.list({q:"mimeType='application/vnd.google-apps.folder' and name='HealthDashboard' and trashed=false",fields:'files(id,name)'});
+   if(r.result.files && r.result.files.length){ this.state.folderId=r.result.files[0].id; }
+   else { const c=await gapi.client.drive.files.create({resource:{name:'HealthDashboard',mimeType:'application/vnd.google-apps.folder'},fields:'id'}); this.state.folderId=c.result.id; }
+   localStorage.setItem('hd_folder',this.state.folderId); return this.state.folderId; },
+ async _file(){ const q=`name='healthdashboard-data.json' and '${this.state.folderId}' in parents and trashed=false`;
+   const r=await gapi.client.drive.files.list({q,fields:'files(id,name)'}); return (r.result.files||[])[0]||null; },
+ async syncNow(){ const btn=document.getElementById('syncNowBtn'); if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span>Syncing…';}
+   try{ await this.ensureFolder(); const body=JSON.stringify(HD); const existing=await this._file();
      const meta={name:'healthdashboard-data.json',mimeType:'application/json'}; if(!existing)meta.parents=[this.state.folderId];
      const boundary='hdb'+Math.floor(performance.now());
      const multipart=`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${boundary}--`;
      const path='https://www.googleapis.com/upload/drive/v3/files'+(existing?('/'+existing.id):'')+'?uploadType=multipart';
      await gapi.client.request({path,method:existing?'PATCH':'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body:multipart});
      this.state.last='just now'; localStorage.setItem('hd_lastsync', Date.now()); toast('Backed up to Drive');
-   }catch(e){alert('Sync failed: '+(e.message||e));}
+   }catch(e){alert('Sync failed: '+(e.result&&e.result.error?e.result.error.message:(e.message||e)));}
    finally{ renderSync(); } },
- async restore(){ if(!this.state.folderId)return; try{ const f=await this._file(); if(!f){alert('No backup found in this folder yet.');return;}
+ async restore(){ try{ await this.ensureFolder(); const f=await this._file(); if(!f){alert('No backup in Drive yet — tap Sync now first.');return;}
      const r=await gapi.client.drive.files.get({fileId:f.id,alt:'media'}); const data=JSON.parse(r.body);
      if(confirm('Replace this device’s data with the Drive backup?')){ HD=data; persist(); person=HD.profiles[0].id; renderToggle();populateReports();renderAll(); toast('Restored from Drive'); } }
    catch(e){alert('Restore failed: '+(e.message||e));} },
  disconnect(){ if(this.token&&window.google)google.accounts.oauth2.revoke(this.token,()=>{}); this.token=null; this.state=Object.assign(this.state,{connected:false,email:''}); renderSync(); },
- _loadRestore(){ const t=localStorage.getItem('hd_lastsync'); if(t){const h=(Date.now()-+t)/36e5; this.state.last=h<1?'under an hour ago':Math.round(h)+'h ago';} },
- autoSync(){ if(!CFG.GOOGLE_CLIENT_ID)return; const t=+localStorage.getItem('hd_lastsync')||0; if(Date.now()-t>=864e5 && this.state.connected && this.state.folderId){ this.syncNow(); } },
+ _loadRestore(){ const fid=localStorage.getItem('hd_folder'); if(fid)this.state.folderId=fid;
+   const t=localStorage.getItem('hd_lastsync'); if(t){const h=(Date.now()-+t)/36e5; this.state.last=h<1?'under an hour ago':Math.round(h)+'h ago';} },
+ autoSync(){ if(!CFG.GOOGLE_CLIENT_ID)return; const t=+localStorage.getItem('hd_lastsync')||0; if(Date.now()-t>=864e5 && this.state.connected){ this.syncNow(); } },
 };
 function saveGCfg(){
  const g={GOOGLE_CLIENT_ID:(document.getElementById('gcId').value||'').trim(),
-          GOOGLE_API_KEY:(document.getElementById('gcKey').value||'').trim(),
-          DRIVE_FOLDER_ID:(document.getElementById('gcFolder').value||'').trim()};
- if(!g.GOOGLE_CLIENT_ID||!g.GOOGLE_API_KEY){alert('Please paste both the Client ID and the API key.');return;}
+          GOOGLE_API_KEY:((document.getElementById('gcKey')||{}).value||'').trim()};
+ if(!g.GOOGLE_CLIENT_ID){alert('Please paste your Google Client ID.');return;}
  localStorage.setItem('hd_gcfg',JSON.stringify(g)); CFG=Object.assign({},CFG,g);
- Drive.state.folderId=g.DRIVE_FOLDER_ID||Drive.state.folderId;
  renderSync(); toast('Drive keys saved — tap Connect');
 }
 function loadScript(src){return new Promise((res,rej)=>{if(document.querySelector(`script[src="${src}"]`))return res();
