@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#12151c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Health">
+<title>HealthDashboard</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="phone">
+  <header>
+    <div class="h-top">
+      <div class="brand"><span class="dot">♥</span> HealthDashboard</div>
+      <div class="h-actions">
+        <div class="sync-chip" onclick="setView('sync')"><span class="live" id="syncDot"></span><span id="syncTxt">Backup</span></div>
+        <button class="icon-btn" onclick="openUpload()" title="Upload report">＋</button>
+      </div>
+    </div>
+    <div class="toggle" id="toggle"></div>
+  </header>
+
+  <div class="meta">
+    <span id="mMode">All parameters · latest</span>
+    <span class="selwrap"><select class="reportsel" id="reportSel" onchange="onReport(this.value)"></select><span class="caret">▾</span></span>
+  </div>
+
+  <main>
+    <div class="view active" id="v-dash"></div>
+    <div class="view" id="v-trends">
+      <div class="rangechips" id="rangeChips"></div>
+      <div id="trendsBody"></div>
+    </div>
+    <div class="view" id="v-actions"></div>
+    <div class="view" id="v-sync"></div>
+  </main>
+
+  <nav>
+    <button class="active" data-v="dash" onclick="setView('dash')"><span class="ni">▦</span>Dashboard</button>
+    <button data-v="trends" onclick="setView('trends')"><span class="ni">📈</span>Trends</button>
+    <button data-v="actions" onclick="setView('actions')" style="position:relative"><span class="ni">✦</span>Actions<span class="badge" id="actBadge">0</span></button>
+    <button data-v="sync" onclick="setView('sync')"><span class="ni">☁</span>Sync</button>
+  </nav>
+</div>
+
+<!-- Upload sheet -->
+<div class="modal-bg" id="uploadBg" onclick="if(event.target===this)close_('uploadBg')">
+  <div class="sheet" id="uploadSheet"></div>
+</div>
+<input type="file" id="fileInput" accept="application/pdf">
+<input type="file" id="jsonInput" accept="application/json,.json">
+
+<script src="config.js"></script>
+<script src="data/seed.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="app.js"></script>
+<script>
+if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{})); }
+</script>
+</body>
+</html>

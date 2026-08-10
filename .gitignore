@@ -1,0 +1,10 @@
+# build pipeline & source report text (keep OFF the published site)
+build/
+# personal medical data — NEVER commit to a public repo (kept on-device + private backup file)
+data/*.csv
+data/health-data.json
+data/VALIDATION.md
+data/*-backup.json
+# scratch
+*.png
+mockup.html
