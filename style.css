@@ -65,7 +65,7 @@
   .row:last-child{border-bottom:0;}
   .row .name{flex:1;min-width:0;}
   .row .name .t{font-size:14.5px;font-weight:600;}
-  .row .name .r{font-size:11px;color:var(--muted);margin-top:2px;}
+  .row .name .r{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .row .val{text-align:right;}
   .row .val .v{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;}
   .row .val .u{font-size:11px;color:var(--muted);margin-left:2px;font-weight:500;}

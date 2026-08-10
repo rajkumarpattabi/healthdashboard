@@ -71,6 +71,20 @@ function TH(name,sex){const M=sex==='Male';return ({
  'Vitamin B12':{type:'range',lo:200,hi:900},
 }[name])||{type:'range',lo:-1e9,hi:1e9};}
 function targetStr(th){return th.type==='max'?('< '+(+th.t)):th.type==='min'?('> '+(+th.t)):(th.lo+'–'+th.hi);}
+// short plain-language descriptor per parameter (shown on the dashboard row)
+const DESC={
+ 'HbA1c':'3-month avg blood sugar','Fasting Glucose':'Blood sugar, fasting','Fasting Insulin':'Fasting insulin level','HOMA-IR':'Insulin-resistance index',
+ 'Total Cholesterol':'Total blood cholesterol','LDL Cholesterol':'“Bad” cholesterol','HDL Cholesterol':'“Good” cholesterol','Non-HDL Cholesterol':'All non-good cholesterol',
+ 'VLDL Cholesterol':'Triglyceride-rich cholesterol','Triglycerides':'Blood fats','Apolipoprotein B':'Artery-clogging particle count','Apolipoprotein A1':'Protective (good) protein',
+ 'LDL/HDL Ratio':'Bad-to-good cholesterol ratio','TG/HDL Ratio':'Triglyceride-to-HDL ratio',
+ 'Creatinine':'Kidney filtration marker','Urea':'Protein-waste kidney marker','Uric Acid':'Gout / purine marker','Sodium':'Fluid-balance electrolyte','Chloride':'Fluid-balance electrolyte','Bicarbonate':'Acid-base balance',
+ 'SGPT (ALT)':'Liver enzyme','SGOT (AST)':'Liver / muscle enzyme','GGT':'Liver / bile-duct enzyme','Alkaline Phosphatase':'Liver & bone enzyme','Bilirubin Total':'Bile pigment (liver)','Bilirubin Direct':'Processed bile pigment','Total Protein':'Total blood protein','Albumin':'Main blood protein',
+ 'Hemoglobin':'Oxygen-carrying pigment','RBC Count':'Red blood cell count','PCV':'Packed red-cell volume','MCV':'Average red-cell size','MCH':'Hemoglobin per red cell','RDW-CV':'Red-cell size variation',
+ 'WBC Count':'White cells (immunity)','Neutrophils':'Bacteria-fighting cells','Lymphocytes':'Virus-fighting cells','Eosinophils':'Allergy / parasite cells','Monocytes':'Clean-up immune cells','Basophils':'Allergy-response cells','Platelet Count':'Clotting cells',
+ 'TSH':'Thyroid-control hormone','Total T4':'Thyroid hormone (T4)','Total T3':'Thyroid hormone (T3)',
+ 'Vitamin B12':'Nerve & blood vitamin','Iron':'Blood iron level','TIBC':'Iron-carrying capacity','Vitamin D':'Bone & immunity vitamin','Calcium':'Bone & nerve mineral','Phosphorus':'Bone mineral',
+ 'PSA Total':'Prostate screening marker','CEA':'General tumour marker','CA 125':'Ovarian tumour marker',
+};
 
 /* ---------- state ---------- */
 let HD, person, view='dash', reportMode='latest', trendRange='all';
@@ -200,9 +214,9 @@ function renderLatest(){let html=healthCard()+'',map=paramsBySection();
   const sl=slug(sec),col=collapsed.has(sl);
   html+=`<div class="section sec-h" id="sec-${sl}" onclick="toggleSection('${sl}')">${sec} <span class="count">${rows.length}</span><span class="sec-caret" id="cr-${sl}">${col?'▸':'▾'}</span></div><div class="sec-body" id="sb-${sl}" ${col?'style="display:none"':''}><div class="card">`;
   rows.forEach(([name,p])=>{const lm=lastMeasured(p),v=lm.v,stale=lm.idx!==p.values.length-1&&lm.idx>=0;
-   const ref=p.refs&&p.refs[lm.idx]?p.refs[lm.idx]:'—';
-   const sub=stale?`Target ${p.target} ${p.unit} · <span style="color:var(--warning)">last measured ${shortDate(HD.dates[lm.idx])}</span>`
-                  :`Target ${p.target} ${p.unit} · lab range ${ref}`;
+   const desc=DESC[name]||'';
+   const sub=stale?`${desc} · <span style="color:var(--warning)">last measured ${shortDate(HD.dates[lm.idx])}</span>`
+                  :`${desc}${desc?' · ':''}${p.target} ${p.unit}`;
    const tap=hasTrend(name,p);
    html+=`<div class="row ${tap?'tappable':''}" ${tap?`onclick="gotoTrend('${slug(name)}')"`:''}>
      <div class="name"><div class="t">${name}</div><div class="r">${sub}</div></div>
@@ -217,8 +231,9 @@ function renderReport(idx){let html='',map=paramsBySection(),p=prof(),total=0;
  SECTIONS.forEach(sec=>{const rows=map[sec].filter(([n,pp])=>pp.values[idx]!=null);if(!rows.length)return;total+=rows.length;
   const sl=slug(sec),col=collapsed.has(sl);
   html+=`<div class="section sec-h" id="sec-${sl}" onclick="toggleSection('${sl}')">${sec} <span class="count">${rows.length}</span><span class="sec-caret" id="cr-${sl}">${col?'▸':'▾'}</span></div><div class="sec-body" id="sb-${sl}" ${col?'style="display:none"':''}><div class="card">`;
-  rows.forEach(([name,pp])=>{const v=pp.values[idx],tap=hasTrend(name,pp),ref=pp.refs&&pp.refs[idx]?pp.refs[idx]:pp.target;
-   const sub=`Reference ${ref} ${pp.unit}`+(tap?'':' · <span style="color:var(--muted)">no trend</span>');
+  rows.forEach(([name,pp])=>{const v=pp.values[idx],tap=hasTrend(name,pp);
+   const desc=DESC[name]||'';
+   const sub=`${desc}${desc?' · ':''}${pp.target} ${pp.unit}`;
    html+=`<div class="row ${tap?'tappable':''}" ${tap?`onclick="gotoTrend('${slug(name)}')"`:''}>
      <div class="name"><div class="t">${name}</div><div class="r">${sub}</div></div>
      <div class="val-wrap"><div class="val"><span class="v">${v}</span><span class="u">${pp.unit}</span></div>${pill(pp.th,v)}</div>
