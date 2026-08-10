@@ -1,8 +1,9 @@
 // HealthDashboard configuration.
-// The app works fully on-device without these. Fill them in ONLY to enable Google Drive backup.
-// See README.md → "Enable Google Drive backup" for the 5-minute setup.
+// The app works fully on-device without this. The Client ID enables Google Drive backup.
+// A client-side OAuth Client ID is NOT a secret — it's protected by the "authorised
+// JavaScript origins" you set on it in Google Cloud Console.
 window.HD_CONFIG = {
-  GOOGLE_CLIENT_ID: "",   // e.g. "1234567890-abcdef.apps.googleusercontent.com"
-  GOOGLE_API_KEY:   "",   // browser API key with Drive API + Picker API enabled
-  DRIVE_FOLDER_ID:  "1622qdkY3HlwzHSeX7Z3TUI5bjjvUlcKr" // your HealthDashboard backup folder
+  GOOGLE_CLIENT_ID: "903091492554-39i0rrd5800pqkfk6r7q5n0hcb42rg3q.apps.googleusercontent.com",
+  GOOGLE_API_KEY:   "",   // not needed (the app creates its own Drive folder; no Picker)
+  DRIVE_FOLDER_ID:  ""    // not used — the app auto-creates a "HealthDashboard" folder
 };
