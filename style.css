@@ -186,3 +186,9 @@ input[type=file]{display:none;}
 .hs-sys .hi{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;flex:none;}
 .hs-sys.ok .hi{background:var(--good-soft);color:#7be07b;} .hs-sys.bad .hi{background:var(--warn-soft);color:#ffcf6b;}
 .hs-sys em{margin-left:auto;font-style:normal;color:#ffcf6b;font-size:11px;background:var(--warn-soft);border-radius:8px;padding:0 6px;}
+
+/* --- collapsible sections + clickable health chips --- */
+.sec-h{cursor:pointer;user-select:none;justify-content:flex-start;}
+.sec-caret{margin-left:8px;color:var(--muted);font-size:11px;}
+.section.flash{animation:hl 1.4s ease;border-radius:8px;}
+.hs-sys{cursor:pointer;} .hs-sys:active{transform:scale(.98);}

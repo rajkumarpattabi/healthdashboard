@@ -8,7 +8,7 @@ let CFG=Object.assign({},window.HD_CONFIG||{},safeParse(localStorage.getItem('hd
 /* ---------- parameter dictionary (also drives the upload parser) ---------- */
 const SEC={DIA:'Diabetes Profile',HRT:'Heart Health',KID:'Kidney Function',LIV:'Liver Health',CBC:'Complete Blood Picture',THY:'Thyroid Function',VIT:'Vitamins & Minerals',BONE:'Bone Health',CAN:'Cancer Screening'};
 const SECTIONS=[SEC.DIA,SEC.HRT,SEC.KID,SEC.LIV,SEC.CBC,SEC.THY,SEC.VIT,SEC.BONE,SEC.CAN];
-const KEY=new Set(['HbA1c','Fasting Glucose','Fasting Insulin','HOMA-IR','Total Cholesterol','LDL Cholesterol','HDL Cholesterol','Triglycerides','Apolipoprotein B','Creatinine','Uric Acid','Hemoglobin','TSH','Vitamin D']);
+const KEY=new Set(['HbA1c','Fasting Glucose','Fasting Insulin','HOMA-IR','Total Cholesterol','LDL Cholesterol','HDL Cholesterol','Triglycerides','Apolipoprotein B','Creatinine','Uric Acid','Hemoglobin','TSH','Vitamin D','Vitamin B12']);
 const ORDER=['HbA1c','Fasting Glucose','Fasting Insulin','HOMA-IR','Total Cholesterol','LDL Cholesterol','HDL Cholesterol','Non-HDL Cholesterol','VLDL Cholesterol','Triglycerides','Apolipoprotein B','Apolipoprotein A1','LDL/HDL Ratio','TG/HDL Ratio','Creatinine','Urea','Uric Acid','Sodium','Chloride','Bicarbonate','SGPT (ALT)','SGOT (AST)','GGT','Alkaline Phosphatase','Bilirubin Total','Bilirubin Direct','Total Protein','Albumin','Hemoglobin','RBC Count','PCV','MCV','MCH','RDW-CV','WBC Count','Neutrophils','Lymphocytes','Eosinophils','Monocytes','Basophils','Platelet Count','TSH','Total T4','Total T3','Vitamin B12','Iron','TIBC','Vitamin D','Calcium','Phosphorus','PSA Total','CEA','CA 125'];
 // lab-format upload parser dictionary (core params). Aarthi SMART REPORTs use parseAarthi().
 const DICT={
@@ -73,7 +73,19 @@ function TH(name,sex){const M=sex==='Male';return ({
 function targetStr(th){return th.type==='max'?('< '+(+th.t)):th.type==='min'?('> '+(+th.t)):(th.lo+'–'+th.hi);}
 
 /* ---------- state ---------- */
-let HD, person, view='dash', reportMode='latest';
+let HD, person, view='dash', reportMode='latest', trendRange='all';
+const collapsed=new Set();
+const ms=d=>{const[y,m,dd]=d.split('-');return Date.UTC(+y,+m-1,+dd);};
+function msToShort(v){const d=new Date(v);return MON[d.getUTCMonth()]+' '+d.getUTCFullYear();}
+function windowBounds(){const TS=HD.dates.map(ms); if(!TS.length)return[0,1]; const end=Math.max(...TS);
+  if(trendRange==='all')return[Math.min(...TS),end];
+  const yrs={'3y':3,'2y':2,'1y':1}[trendRange]||99; return[end-Math.round(yrs*365.25*864e5),end];}
+function toggleSection(sl){const b=document.getElementById('sb-'+sl),c=document.getElementById('cr-'+sl);if(!b)return;
+  const hide=b.style.display!=='none'; b.style.display=hide?'none':''; if(c)c.textContent=hide?'▸':'▾';
+  hide?collapsed.add(sl):collapsed.delete(sl);}
+function scrollToSection(sl){ if(collapsed.has(sl)){collapsed.delete(sl);const b=document.getElementById('sb-'+sl),c=document.getElementById('cr-'+sl);if(b)b.style.display='';if(c)c.textContent='▾';}
+  const h=document.getElementById('sec-'+sl); if(h){h.scrollIntoView({behavior:'smooth',block:'start'});h.classList.remove('flash');void h.offsetWidth;h.classList.add('flash');}}
+function setTrendRange(k){trendRange=k;renderTrends();}
 // Safe default so the app still boots if data/seed.js is removed (data-free public repo).
 const DEFAULT_EMPTY={dates:[],labels:[],sections:SECTIONS,profiles:[
   {id:'rajkumar',name:'Rajkumar',age:43,sex:'Male',labs:[],params:{}},
@@ -116,11 +128,12 @@ function sparkline(vals,th){const w=56,h=30,pad=3,mi=measuredIdx(vals),mv=mi.map
  const last=mi[mi.length-1];
  return `<svg class="spark" viewBox="0 0 ${w} ${h}">${seg}<circle cx="${X(last).toFixed(1)}" cy="${Y(vals[last]).toFixed(1)}" r="2.6" fill="${col}"/></svg>`;}
 
-function lineChart(vals,th,unit){const W=372,H=150,L=34,R=14,T=14,B=26,iw=W-L-R,ih=H-T-B;
- const TS=HD.dates.map(d=>{const[y,m,dd]=d.split('-');return Date.UTC(+y,+m-1,+dd);});
+function lineChart(vals,th,unit,d0,d1){const W=372,H=150,L=34,R=14,T=14,B=26,iw=W-L-R,ih=H-T-B;
+ const TS=HD.dates.map(ms);
  const mi=measuredIdx(vals),mv=mi.map(i=>vals[i]);let lo=Math.min(...mv),hi=Math.max(...mv);
  const marks=th.type==='range'?[th.lo,th.hi]:[th.t];marks.forEach(m=>{lo=Math.min(lo,m);hi=Math.max(hi,m);});
- const pv=(hi-lo)*0.15||1;lo-=pv;hi+=pv;const t0=TS[0],t1=TS[TS.length-1]||t0+1,span=(t1-t0)||1;
+ const pv=(hi-lo)*0.15||1;lo-=pv;hi+=pv;
+ const t0=(d0!=null?d0:TS[0]),t1=(d1!=null?d1:TS[TS.length-1]);const span=(t1-t0)||1;
  const X=i=>L+((TS[i]-t0)/span)*iw,Y=v=>T+ih-((v-lo)/(hi-lo))*ih;
  let band='';if(th.type==='max'){const y=Y(th.t);band=`<rect x="${L}" y="${y}" width="${iw}" height="${(T+ih)-y}" fill="var(--good-soft)"/>`;}
  else if(th.type==='min'){const y=Y(th.t);band=`<rect x="${L}" y="${T}" width="${iw}" height="${y-T}" fill="var(--good-soft)"/>`;}
@@ -133,17 +146,17 @@ function lineChart(vals,th,unit){const W=372,H=150,L=34,R=14,T=14,B=26,iw=W-L-R,
  let seg='';for(let k=0;k<mi.length-1;k++){const a=mi[k],b=mi[k+1],dash=(b-a>1)?'stroke-dasharray="6 4" opacity="0.8"':'';
   seg+=`<line x1="${X(a).toFixed(1)}" y1="${Y(vals[a]).toFixed(1)}" x2="${X(b).toFixed(1)}" y2="${Y(vals[b]).toFixed(1)}" stroke="${col}" stroke-width="2" stroke-linecap="round" ${dash}/>`;}
  let dots=mi.map((i,k)=>{const last=k===mi.length-1;return `<circle cx="${X(i).toFixed(1)}" cy="${Y(vals[i]).toFixed(1)}" r="${last?4:2.8}" fill="${last?col:'var(--surface)'}" stroke="${col}" stroke-width="2"/>`;}).join('');
- const xl=`<text x="${X(0)}" y="${H-8}" fill="var(--muted)" font-size="9">${shortDate(HD.dates[0])}</text><text x="${X(HD.dates.length-1)}" y="${H-8}" fill="var(--muted)" font-size="9" text-anchor="end">${shortDate(HD.dates[HD.dates.length-1])}</text>`;
+ const xl=`<text x="${L}" y="${H-8}" fill="var(--muted)" font-size="9">${msToShort(t0)}</text><text x="${L+iw}" y="${H-8}" fill="var(--muted)" font-size="9" text-anchor="end">${msToShort(t1)}</text>`;
  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">${band}${grid}${yt}${thl}${seg}${dots}${xl}</svg>`;}
 
-function inference(name,vals,th,unit){const mi=measuredIdx(vals);if(mi.length<2)return '';
+function inference(name,vals,th,unit,slots){const mi=measuredIdx(vals);if(mi.length<2)return '';
  const first=vals[mi[0]],last=vals[mi[mi.length-1]];
  const dir=last>first?'rose':(last<first?'fell':'held steady'),ar=last>first?'↗':(last<first?'↘':'→');
  const s=statusOf(th,last);let pos;
  if(th.type==='max')pos=last>=th.t?`still above the ${+th.t} ${unit} target`:`within the healthy range (target &lt; ${+th.t})`;
  else if(th.type==='min')pos=last>=th.t?`at a healthy level (target ≥ ${+th.t})`:`below the ${+th.t} ${unit} target`;
  else pos=(last<th.lo)?`below the normal ${th.lo}–${th.hi} range`:(last>th.hi?`above the normal ${th.lo}–${th.hi} range`:`inside the normal ${th.lo}–${th.hi} range`);
- const verb=s==='good'?'and is now':'but is',miss=vals.length-mi.length;
+ const verb=s==='good'?'and is now':'but is',miss=(slots!=null?slots:vals.length)-mi.length;
  const gap=miss?` <span style="color:var(--muted)">(${miss} report${miss>1?'s':''} didn't include it)</span>`:'';
  const col=s==='good'?'var(--good)':(s==='crit'?'var(--critical)':'var(--warning)');
  return `<b class="ar" style="color:${col}">${ar}</b><span>${name} ${dir} from <b>${first}</b> to <b>${last} ${unit}</b> across ${mi.length} readings${gap}, ${verb} ${pos}.</span>`;}
@@ -171,14 +184,15 @@ function healthCard(){
     if(statusOf(pp.th,lm.v)==='good')inr++; else sys[pp.section].concern++;});
   if(!tot) return '';
   const score=Math.round(100*inr/tot);
-  const chips=SECTIONS.filter(s=>sys[s]&&sys[s].any).map(s=>`<div class="hs-sys ${sys[s].concern?'bad':'ok'}"><span class="hi">${sys[s].concern?'!':'✓'}</span>${s}${sys[s].concern?` <em>${sys[s].concern}</em>`:''}</div>`).join('');
+  const chips=SECTIONS.filter(s=>sys[s]&&sys[s].any).map(s=>`<div class="hs-sys ${sys[s].concern?'bad':'ok'}" onclick="scrollToSection('${slug(s)}')"><span class="hi">${sys[s].concern?'!':'✓'}</span>${s}${sys[s].concern?` <em>${sys[s].concern}</em>`:''}</div>`).join('');
   return `<div class="hs-card"><div class="hs-top"><div class="hsn">${score}<span>/100</span></div>
     <div class="hsl">Health Score<br><span>${p.name} · latest results</span></div></div>
     <div class="hs-grid">${chips}</div></div>`;
 }
 function renderLatest(){let html=healthCard()+'',map=paramsBySection();
  SECTIONS.forEach(sec=>{const rows=map[sec].filter(([n,p])=>lastMeasured(p).idx>=0);if(!rows.length)return;
-  html+=`<div class="section">${sec} <span class="count">${rows.length}</span></div><div class="card">`;
+  const sl=slug(sec),col=collapsed.has(sl);
+  html+=`<div class="section sec-h" id="sec-${sl}" onclick="toggleSection('${sl}')">${sec} <span class="count">${rows.length}</span><span class="sec-caret" id="cr-${sl}">${col?'▸':'▾'}</span></div><div class="sec-body" id="sb-${sl}" ${col?'style="display:none"':''}><div class="card">`;
   rows.forEach(([name,p])=>{const lm=lastMeasured(p),v=lm.v,stale=lm.idx!==p.values.length-1&&lm.idx>=0;
    const ref=p.refs&&p.refs[lm.idx]?p.refs[lm.idx]:'—';
    const sub=stale?`Target ${p.target} ${p.unit} · <span style="color:var(--warning)">last measured ${shortDate(HD.dates[lm.idx])}</span>`
@@ -189,36 +203,44 @@ function renderLatest(){let html=healthCard()+'',map=paramsBySection();
      ${sparkline(p.values,p.th)}
      <div class="val-wrap"><div class="val"><span class="v">${v}</span><span class="u">${p.unit}</span></div>${pill(p.th,v)}</div>
      <span class="chev">›</span></div>`;});
-  html+='</div>';});
+  html+='</div></div>';});
  document.getElementById('v-dash').innerHTML=html||emptyState('No data for this profile yet.');}
 
 function renderReport(idx){let html='',map=paramsBySection(),p=prof(),total=0;
  html+=`<div class="snap-note">📄 <span>Showing the <b style="color:var(--ink)">${lbl(HD.dates[idx])}</b> report exactly as recorded</span><span class="lab">${p.labs[idx]||''}</span></div>`;
  SECTIONS.forEach(sec=>{const rows=map[sec].filter(([n,pp])=>pp.values[idx]!=null);if(!rows.length)return;total+=rows.length;
-  html+=`<div class="section">${sec} <span class="count">${rows.length}</span></div><div class="card">`;
+  const sl=slug(sec),col=collapsed.has(sl);
+  html+=`<div class="section sec-h" id="sec-${sl}" onclick="toggleSection('${sl}')">${sec} <span class="count">${rows.length}</span><span class="sec-caret" id="cr-${sl}">${col?'▸':'▾'}</span></div><div class="sec-body" id="sb-${sl}" ${col?'style="display:none"':''}><div class="card">`;
   rows.forEach(([name,pp])=>{const v=pp.values[idx],tap=hasTrend(name,pp),ref=pp.refs&&pp.refs[idx]?pp.refs[idx]:pp.target;
    const sub=`Reference ${ref} ${pp.unit}`+(tap?'':' · <span style="color:var(--muted)">no trend</span>');
    html+=`<div class="row ${tap?'tappable':''}" ${tap?`onclick="gotoTrend('${slug(name)}')"`:''}>
      <div class="name"><div class="t">${name}</div><div class="r">${sub}</div></div>
      <div class="val-wrap"><div class="val"><span class="v">${v}</span><span class="u">${pp.unit}</span></div>${pill(pp.th,v)}</div>
      <span class="chev">›</span></div>`;});
-  html+='</div>';});
+  html+='</div></div>';});
  html+=`<p class="muted-note">${total} parameters recorded in this report. Tap any with a “›” to see its trend across reports.</p>`;
  document.getElementById('v-dash').innerHTML=html;}
 
-function renderTrends(){const p=prof();let html='';
+function renderTrends(){const p=prof();let html='';const [d0,d1]=windowBounds();
  ORDER.filter(n=>KEY.has(n)).forEach(name=>{const pp=p.params[name];if(!pp)return;
+  if(measuredIdx(pp.values).length<2) return;                       // req6: need ≥2 total readings
   const lm=lastMeasured(pp),v=lm.v,stale=lm.idx>=0&&lm.idx!==pp.values.length-1;
-  if(measuredIdx(pp.values).length<2){ if(lm.idx<0)return;
-   html+=`<div class="tcard" id="tc-${slug(name)}"><div class="thead"><div><div class="tt">${name}</div><div class="tgt">Target <b>${pp.target} ${pp.unit}</b> · for ${p.sex.toLowerCase()}, ${p.age}y</div></div><div class="now"><div class="v">${v}</div><div class="u">${pp.unit}</div></div></div><div class="muted-note" style="margin:6px 0 0">One reading so far — need another to show a trend.</div></div>`;return;}
   const st=statusOf(pp.th,v),staleTxt=stale?` · <span style="color:var(--warning)">last measured ${shortDate(HD.dates[lm.idx])}</span>`:'';
+  const fv=pp.values.map((x,i)=> (ms(HD.dates[i])>=d0 && ms(HD.dates[i])<=d1)? x : null);   // window filter
+  const inWin=measuredIdx(fv).length;
+  let mid;
+  if(inWin===0) mid=`<div class="muted-note" style="padding:16px 2px">No readings in this range — widen the range.</div>`;
+  else mid=`<div class="chart-wrap">${lineChart(fv,pp.th,pp.unit,d0,d1)}</div>`+
+       (inWin>=2?`<div class="infer">${inference(name,fv,pp.th,pp.unit,HD.dates.filter(dd=>ms(dd)>=d0&&ms(dd)<=d1).length)}</div>`
+                :`<div class="muted-note" style="margin-top:8px">Only one reading in this range — widen it to see the trend.</div>`);
   html+=`<div class="tcard" id="tc-${slug(name)}">
     <div class="thead"><div><div class="tt">${name}</div><div class="tgt">Target <b>${pp.target} ${pp.unit}</b> · for ${p.sex.toLowerCase()}, ${p.age}y${staleTxt}</div></div>
       <div class="now"><div class="v" style="color:${st==='good'?'var(--ink)':(st==='crit'?'#ff8a8a':'#ffcf6b')}">${v}</div><div class="u">${pp.unit}</div></div></div>
-    <div class="chart-wrap">${lineChart(pp.values,pp.th,pp.unit)}</div>
-    <div class="infer">${inference(name,pp.values,pp.th,pp.unit)}</div></div>`;});
+    ${mid}</div>`;});
+ if(!html) html=`<div class="empty"><div class="big">📈</div><b>No trends in this range.</b><div class="muted-note">Try a wider range, or add more reports.</div></div>`;
  document.getElementById('trendsBody').innerHTML=html;
- document.getElementById('rangeChips').innerHTML=`<span class="chip active">All reports</span>`;}
+ const chips=[['all','All'],['3y','3y'],['2y','2y'],['1y','1y']];
+ document.getElementById('rangeChips').innerHTML=chips.map(([k,l])=>`<span class="chip ${trendRange===k?'active':''}" onclick="setTrendRange('${k}')">${l}</span>`).join('');}
 
 const RECO={
  'HbA1c':['Cut added sugar and refined carbs; favour whole grains, legumes and vegetables.','Aim for 30 min of brisk activity most days.','Recheck HbA1c in about 3 months.'],
