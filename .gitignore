@@ -5,6 +5,7 @@ data/*.csv
 data/health-data.json
 data/VALIDATION.md
 data/*-backup.json
-# scratch
-*.png
+# scratch (root-level screenshots only — keep app icons in icons/)
+/*.png
+!icons/*.png
 mockup.html
