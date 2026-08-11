@@ -193,3 +193,7 @@ input[type=file]{display:none;}
 .sec-caret{margin-left:8px;color:var(--muted);font-size:11px;}
 .section.flash{animation:hl 1.4s ease;border-radius:8px;}
 .hs-sys{cursor:pointer;} .hs-sys:active{transform:scale(.98);}
+
+/* threshold value shown inline after the parameter name (small font) */
+.row .name .t .thr{font-size:11px;font-weight:500;color:var(--muted);margin-left:6px;white-space:nowrap;}
+.row .name .t{overflow:hidden;text-overflow:ellipsis;}

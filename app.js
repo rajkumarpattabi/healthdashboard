@@ -100,6 +100,9 @@ function toggleSection(sl){const b=document.getElementById('sb-'+sl),c=document.
 function scrollToSection(sl){ if(collapsed.has(sl)){collapsed.delete(sl);const b=document.getElementById('sb-'+sl),c=document.getElementById('cr-'+sl);if(b)b.style.display='';if(c)c.textContent='▾';}
   const h=document.getElementById('sec-'+sl); if(h){h.scrollIntoView({behavior:'smooth',block:'start'});h.classList.remove('flash');void h.offsetWidth;h.classList.add('flash');}}
 function setTrendRange(k){trendRange=k;renderTrends();}
+function trendToDash(secSlug){ reportMode='latest'; const s=document.getElementById('reportSel'); if(s)s.value='latest';
+  const mm=document.getElementById('mMode'); if(mm)mm.textContent='All parameters · latest';
+  renderDash(); setView('dash'); setTimeout(()=>scrollToSection(secSlug),60); }
 // Safe default so the app still boots if data/seed.js is removed (data-free public repo).
 const DEFAULT_EMPTY={dates:[],labels:[],sections:SECTIONS,profiles:[
   {id:'rajkumar',name:'Rajkumar',age:43,sex:'Male',labs:[],params:{}},
@@ -170,8 +173,17 @@ function lineChart(vals,th,unit,d0,d1){const W=372,H=150,L=34,R=14,T=14,B=26,iw=
  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">${band}${grid}${yt}${thl}${seg}${dots}${xl}</svg>`;}
 
 function inference(name,vals,th,unit,slots){const mi=measuredIdx(vals);if(mi.length<2)return '';
- const first=vals[mi[0]],last=vals[mi[mi.length-1]];
- const dir=last>first?'rose':(last<first?'fell':'held steady'),ar=last>first?'↗':(last<first?'↘':'→');
+ const seq=mi.map(i=>vals[i]);                          // measured values in date order
+ const first=seq[0],last=seq[seq.length-1];
+ const mn=Math.min(...seq),mx=Math.max(...seq);
+ const up=last>first,down=last<first;
+ // monotonic? (no reversal against the net direction)
+ let mono=true; for(let k=1;k<seq.length;k++){ if(up&&seq[k]<seq[k-1])mono=false; if(down&&seq[k]>seq[k-1])mono=false; }
+ const ar=up?'↗':(down?'↘':'→');
+ let move;
+ if(Math.abs(last-first)<1e-9) move=`has held around <b>${last} ${unit}</b>`;
+ else if(mono) move=`${up?'rose':'fell'} from <b>${first}</b> to <b>${last} ${unit}</b>`;
+ else move=`${up?'is up':'is down'} overall, from <b>${first}</b> to <b>${last} ${unit}</b> (ranging ${mn}–${mx})`;
  const s=statusOf(th,last);let pos;
  if(th.type==='max')pos=last>=th.t?`still above the ${+th.t} ${unit} target`:`within the healthy range (target &lt; ${+th.t})`;
  else if(th.type==='min')pos=last>=th.t?`at a healthy level (target ≥ ${+th.t})`:`below the ${+th.t} ${unit} target`;
@@ -179,7 +191,7 @@ function inference(name,vals,th,unit,slots){const mi=measuredIdx(vals);if(mi.len
  const verb=s==='good'?'and is now':'but is',miss=(slots!=null?slots:vals.length)-mi.length;
  const gap=miss?` <span style="color:var(--muted)">(${miss} report${miss>1?'s':''} didn't include it)</span>`:'';
  const col=s==='good'?'var(--good)':(s==='crit'?'var(--critical)':'var(--warning)');
- return `<b class="ar" style="color:${col}">${ar}</b><span>${name} ${dir} from <b>${first}</b> to <b>${last} ${unit}</b> across ${mi.length} readings${gap}, ${verb} ${pos}.</span>`;}
+ return `<b class="ar" style="color:${col}">${ar}</b><span>${name} ${move} across ${mi.length} readings${gap}, ${verb} ${pos}.</span>`;}
 
 /* ---------- renderers ---------- */
 function renderToggle(){document.getElementById('toggle').innerHTML=HD.profiles.map(p=>
@@ -215,11 +227,10 @@ function renderLatest(){let html=healthCard()+'',map=paramsBySection();
   html+=`<div class="section sec-h" id="sec-${sl}" onclick="toggleSection('${sl}')">${sec} <span class="count">${rows.length}</span><span class="sec-caret" id="cr-${sl}">${col?'▸':'▾'}</span></div><div class="sec-body" id="sb-${sl}" ${col?'style="display:none"':''}><div class="card">`;
   rows.forEach(([name,p])=>{const lm=lastMeasured(p),v=lm.v,stale=lm.idx!==p.values.length-1&&lm.idx>=0;
    const desc=DESC[name]||'';
-   const sub=stale?`${desc} · <span style="color:var(--warning)">last measured ${shortDate(HD.dates[lm.idx])}</span>`
-                  :`${desc}${desc?' · ':''}${p.target} ${p.unit}`;
+   const line2=stale?`${desc}${desc?' · ':''}<span style="color:var(--warning)">last measured ${shortDate(HD.dates[lm.idx])}</span>`:desc;
    const tap=hasTrend(name,p);
    html+=`<div class="row ${tap?'tappable':''}" ${tap?`onclick="gotoTrend('${slug(name)}')"`:''}>
-     <div class="name"><div class="t">${name}</div><div class="r">${sub}</div></div>
+     <div class="name"><div class="t">${name} <span class="thr">${p.target} ${p.unit}</span></div><div class="r">${line2}</div></div>
      ${sparkline(p.values,p.th)}
      <div class="val-wrap"><div class="val"><span class="v">${v}</span><span class="u">${p.unit}</span></div>${pill(p.th,v)}</div>
      <span class="chev">›</span></div>`;});
@@ -233,9 +244,8 @@ function renderReport(idx){let html='',map=paramsBySection(),p=prof(),total=0;
   html+=`<div class="section sec-h" id="sec-${sl}" onclick="toggleSection('${sl}')">${sec} <span class="count">${rows.length}</span><span class="sec-caret" id="cr-${sl}">${col?'▸':'▾'}</span></div><div class="sec-body" id="sb-${sl}" ${col?'style="display:none"':''}><div class="card">`;
   rows.forEach(([name,pp])=>{const v=pp.values[idx],tap=hasTrend(name,pp);
    const desc=DESC[name]||'';
-   const sub=`${desc}${desc?' · ':''}${pp.target} ${pp.unit}`;
    html+=`<div class="row ${tap?'tappable':''}" ${tap?`onclick="gotoTrend('${slug(name)}')"`:''}>
-     <div class="name"><div class="t">${name}</div><div class="r">${sub}</div></div>
+     <div class="name"><div class="t">${name} <span class="thr">${pp.target} ${pp.unit}</span></div><div class="r">${desc}</div></div>
      <div class="val-wrap"><div class="val"><span class="v">${v}</span><span class="u">${pp.unit}</span></div>${pill(pp.th,v)}</div>
      <span class="chev">›</span></div>`;});
   html+='</div></div>';});
@@ -254,7 +264,7 @@ function renderTrends(){const p=prof();let html='';const [d0,d1]=windowBounds();
   else mid=`<div class="chart-wrap">${lineChart(fv,pp.th,pp.unit,d0,d1)}</div>`+
        (inWin>=2?`<div class="infer">${inference(name,fv,pp.th,pp.unit,HD.dates.filter(dd=>ms(dd)>=d0&&ms(dd)<=d1).length)}</div>`
                 :`<div class="muted-note" style="margin-top:8px">Only one reading in this range — widen it to see the trend.</div>`);
-  html+=`<div class="tcard" id="tc-${slug(name)}">
+  html+=`<div class="tcard" id="tc-${slug(name)}" ondblclick="trendToDash('${slug(pp.section)}')" title="Double-tap to view in the dashboard">
     <div class="thead"><div><div class="tt">${name}</div><div class="tgt">Target <b>${pp.target} ${pp.unit}</b> · for ${p.sex.toLowerCase()}, ${p.age}y${staleTxt}</div></div>
       <div class="now"><div class="v" style="color:${st==='good'?'var(--ink)':(st==='crit'?'#ff8a8a':'#ffcf6b')}">${v}</div><div class="u">${pp.unit}</div></div></div>
     ${mid}</div>`;});
