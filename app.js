@@ -8,8 +8,8 @@ let CFG=Object.assign({},window.HD_CONFIG||{},safeParse(localStorage.getItem('hd
 /* ---------- parameter dictionary (also drives the upload parser) ---------- */
 const SEC={DIA:'Diabetes Profile',HRT:'Heart Health',KID:'Kidney Function',LIV:'Liver Health',CBC:'Complete Blood Picture',THY:'Thyroid Function',VIT:'Vitamins & Minerals',BONE:'Bone Health',CAN:'Cancer Screening'};
 const SECTIONS=[SEC.DIA,SEC.HRT,SEC.KID,SEC.LIV,SEC.CBC,SEC.THY,SEC.VIT,SEC.BONE,SEC.CAN];
-const KEY=new Set(['HbA1c','Fasting Glucose','Fasting Insulin','HOMA-IR','Total Cholesterol','LDL Cholesterol','HDL Cholesterol','Triglycerides','Apolipoprotein B','Creatinine','Uric Acid','Hemoglobin','TSH','Vitamin D','Vitamin B12']);
-const ORDER=['HbA1c','Fasting Glucose','Fasting Insulin','HOMA-IR','Total Cholesterol','LDL Cholesterol','HDL Cholesterol','Non-HDL Cholesterol','VLDL Cholesterol','Triglycerides','Apolipoprotein B','Apolipoprotein A1','LDL/HDL Ratio','TG/HDL Ratio','Creatinine','Urea','Uric Acid','Sodium','Chloride','Bicarbonate','SGPT (ALT)','SGOT (AST)','GGT','Alkaline Phosphatase','Bilirubin Total','Bilirubin Direct','Total Protein','Albumin','Hemoglobin','RBC Count','PCV','MCV','MCH','RDW-CV','WBC Count','Neutrophils','Lymphocytes','Eosinophils','Monocytes','Basophils','Platelet Count','TSH','Total T4','Total T3','Vitamin B12','Iron','TIBC','Vitamin D','Calcium','Phosphorus','PSA Total','CEA','CA 125'];
+const KEY=new Set(['HbA1c','Fasting Glucose','Fasting Insulin','HOMA-IR','Total Cholesterol','LDL Cholesterol','HDL Cholesterol','Triglycerides','Apolipoprotein B','Creatinine','Uric Acid','Hemoglobin','TSH','Vitamin D','Vitamin B12','FIB-4']);
+const ORDER=['HbA1c','Fasting Glucose','Fasting Insulin','HOMA-IR','Total Cholesterol','LDL Cholesterol','HDL Cholesterol','Non-HDL Cholesterol','VLDL Cholesterol','Triglycerides','Apolipoprotein B','Apolipoprotein A1','LDL/HDL Ratio','TG/HDL Ratio','Creatinine','Urea','Uric Acid','Sodium','Chloride','Bicarbonate','FIB-4','SGPT (ALT)','SGOT (AST)','GGT','Alkaline Phosphatase','Bilirubin Total','Bilirubin Direct','Total Protein','Albumin','Hemoglobin','RBC Count','PCV','MCV','MCH','RDW-CV','WBC Count','Neutrophils','Lymphocytes','Eosinophils','Monocytes','Basophils','Platelet Count','TSH','Total T4','Total T3','Vitamin B12','Iron','TIBC','Vitamin D','Calcium','Phosphorus','PSA Total','CEA','CA 125'];
 // lab-format upload parser dictionary (core params). Aarthi SMART REPORTs use parseAarthi().
 const DICT={
  'HbA1c':{sec:SEC.DIA,unit:'%',special:'hba1c'},
@@ -84,6 +84,7 @@ const DESC={
  'TSH':'Thyroid-control hormone','Total T4':'Thyroid hormone (T4)','Total T3':'Thyroid hormone (T3)',
  'Vitamin B12':'Nerve & blood vitamin','Iron':'Blood iron level','TIBC':'Iron-carrying capacity','Vitamin D':'Bone & immunity vitamin','Calcium':'Bone & nerve mineral','Phosphorus':'Bone mineral',
  'PSA Total':'Prostate screening marker','CEA':'General tumour marker','CA 125':'Ovarian tumour marker',
+ 'FIB-4':'Liver-scarring (fibrosis) risk',
 };
 
 /* ---------- state ---------- */
@@ -118,6 +119,18 @@ function fixTh(d){ if(!d||!d.profiles)return d; d.profiles.forEach(pr=>{const M=
   const fixes={'WBC Count':{type:'range',lo:4,hi:11},'Platelet Count':{type:'range',lo:150,hi:410},
                'RBC Count':{type:'range',lo:M?4.5:3.8,hi:M?5.9:5.1},'Vitamin D':{type:'range',lo:30,hi:100}};
   Object.entries(fixes).forEach(([n,th])=>{const p=pr.params&&pr.params[n]; if(p){p.th=th; p.target=targetStr(th);}});}); return d; }
+// Derived FIB-4 liver-fibrosis-risk index: (age × AST) / (platelets[10^9/L] × √ALT).
+// Platelet Count is already in 10^3/µL (= 10^9/L numerically). Computed per date where all inputs exist.
+function computeDerived(d){ if(!d||!d.profiles)return d; d.profiles.forEach(pr=>{const P=pr.params; if(!P)return;
+  const ast=P['SGOT (AST)'],alt=P['SGPT (ALT)'],plt=P['Platelet Count'],age=pr.age||45;
+  if(!ast||!alt||!plt){ delete P['FIB-4']; return; }
+  const N=d.dates.length,vals=new Array(N).fill(null),refs=new Array(N).fill('');
+  for(let i=0;i<N;i++){const a=ast.values[i],l=alt.values[i],p=plt.values[i];
+    if(a!=null&&l!=null&&p!=null&&l>0&&p>0) vals[i]=Math.round((age*a)/(p*Math.sqrt(l))*100)/100;}
+  if(!vals.some(v=>v!=null)){ delete P['FIB-4']; return; }
+  const th={type:'max',t:1.3,warn:1.3,crit:2.67};
+  P['FIB-4']={section:SEC.LIV,unit:'',values:vals,refs:refs,th,target:targetStr(th),key:true,derived:true};
+}); return d; }
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function lbl(iso){const [y,m,d]=iso.split('-');return `${(+d)<10?'0':''}${+d} ${MON[+m-1]} ${y}`;}
 function shortDate(iso){const [y,m]=iso.split('-');return `${MON[+m-1]} ${y}`;}
@@ -378,7 +391,7 @@ function exportBackup(){ const blob=new Blob([JSON.stringify(HD)],{type:'applica
  document.body.appendChild(a); a.click(); a.remove(); toast('Backup file downloaded'); }
 document.getElementById('jsonInput').addEventListener('change',async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f)return;
  try{ const d=JSON.parse(await f.text()); if(!d||!d.profiles||!d.dates) throw new Error('Not a HealthDashboard backup');
-   HD=fixTh(d); persist(); person=HD.profiles[0].id; reportMode='latest';
+   HD=computeDerived(fixTh(d)); persist(); person=HD.profiles[0].id; reportMode='latest';
    renderToggle(); populateReports(); renderAll(); setView('dash'); toast('Backup imported'); }
  catch(err){ alert('Import failed: '+(err.message||err)); } });
 async function pdfText(file){ if(!window.pdfjsLib) throw new Error('PDF engine not loaded (needs internet the first time).');
@@ -472,7 +485,7 @@ function saveReport(P){
      p.params[name]=par; }
    par.values[idx]=info.value; par.refs[idx]=info.ref||'';
  });
- persist(); close_('uploadBg');
+ computeDerived(HD); persist(); close_('uploadBg');
  reportMode='latest'; document.getElementById('mMode').textContent='All parameters · latest';
  renderToggle(); populateReports(); renderAll(); setView('dash');
  toast(`Saved ${p.name}'s ${lbl(P.iso)} report`);
@@ -516,7 +529,7 @@ const Drive={ state:{connected:false,email:'',folderId:'',folderName:'HealthDash
    finally{ renderSync(); } },
  async restore(){ try{ await this.ensureFolder(); const f=await this._file(); if(!f){alert('No backup in Drive yet — tap Sync now first.');return;}
      const r=await gapi.client.drive.files.get({fileId:f.id,alt:'media'}); const data=JSON.parse(r.body);
-     if(confirm('Replace this device’s data with the Drive backup?')){ HD=fixTh(data); persist(); person=HD.profiles[0].id; renderToggle();populateReports();renderAll(); toast('Restored from Drive'); } }
+     if(confirm('Replace this device’s data with the Drive backup?')){ HD=computeDerived(fixTh(data)); persist(); person=HD.profiles[0].id; renderToggle();populateReports();renderAll(); toast('Restored from Drive'); } }
    catch(e){alert('Restore failed: '+(e.message||e));} },
  disconnect(){ if(this.token&&window.google)google.accounts.oauth2.revoke(this.token,()=>{}); this.token=null; this.state=Object.assign(this.state,{connected:false,email:''}); renderSync(); },
  _loadRestore(){ const fid=localStorage.getItem('hd_folder'); if(fid)this.state.folderId=fid;
@@ -534,6 +547,6 @@ function loadScript(src){return new Promise((res,rej)=>{if(document.querySelecto
  const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('load '+src));document.head.appendChild(s);});}
 
 /* ---------- boot ---------- */
-HD=fixTh(load()); person=HD.profiles[0].id;
+HD=computeDerived(fixTh(load())); person=HD.profiles[0].id;
 renderToggle(); populateReports(); renderAll();
 if(CFG.GOOGLE_CLIENT_ID){ Drive._loadRestore(); }
