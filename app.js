@@ -116,7 +116,7 @@ function prof(id){ return HD.profiles.find(p=>p.id===(id||person)); }
 // report's printed range was in raw units) so status & Health Score are correct.
 function fixTh(d){ if(!d||!d.profiles)return d; d.profiles.forEach(pr=>{const M=pr.sex==='Male';
   const fixes={'WBC Count':{type:'range',lo:4,hi:11},'Platelet Count':{type:'range',lo:150,hi:410},
-               'RBC Count':{type:'range',lo:M?4.5:3.8,hi:M?5.9:5.1}};
+               'RBC Count':{type:'range',lo:M?4.5:3.8,hi:M?5.9:5.1},'Vitamin D':{type:'range',lo:30,hi:100}};
   Object.entries(fixes).forEach(([n,th])=>{const p=pr.params&&pr.params[n]; if(p){p.th=th; p.target=targetStr(th);}});}); return d; }
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function lbl(iso){const [y,m,d]=iso.split('-');return `${(+d)<10?'0':''}${+d} ${MON[+m-1]} ${y}`;}
