@@ -134,6 +134,27 @@ function computeDerived(d){ if(!d||!d.profiles)return d; d.profiles.forEach(pr=>
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function lbl(iso){const [y,m,d]=iso.split('-');return `${(+d)<10?'0':''}${+d} ${MON[+m-1]} ${y}`;}
 function shortDate(iso){const [y,m]=iso.split('-');return `${MON[+m-1]} ${y}`;}
+// ---- "time since last test" counter ----
+const DAY_MS=864e5;
+function sinceParts(fromIso,nowMs){ const f=new Date(ms(fromIso)),t=new Date(nowMs);
+ let months=(t.getUTCFullYear()-f.getUTCFullYear())*12+(t.getUTCMonth()-f.getUTCMonth());
+ let days=t.getUTCDate()-f.getUTCDate();
+ if(days<0){ months--; days+=new Date(Date.UTC(t.getUTCFullYear(),t.getUTCMonth(),0)).getUTCDate(); }
+ if(months<0){months=0;days=0;}
+ const totalDays=Math.max(0,Math.floor((nowMs-ms(fromIso))/DAY_MS));
+ return {months,days,totalDays}; }
+// "23 d" when under a month, else "1 m 18 d"
+function sinceStr(fromIso,nowMs){ const p=sinceParts(fromIso,nowMs);
+ return p.months<1?`${p.totalDays} d`:`${p.months} m ${p.days} d`; }
+const STALE_MONTHS=6;                    // per-parameter counter appears once a test is this old
+// most recent date (index) at which this person had any parameter measured
+function latestIdx(p){ let idx=-1; Object.values(p.params).forEach(pp=>{const lm=lastMeasured(pp); if(lm.idx>idx)idx=lm.idx;}); return idx; }
+function renderLastTest(){ const el=document.getElementById('lastTest'); if(!el)return; const p=prof();
+ const idx=latestIdx(p);
+ if(idx<0){ el.innerHTML=''; el.className='lasttest'; return; }
+ const now=Date.now(), sp=sinceParts(HD.dates[idx],now);
+ el.className='lasttest'+(sp.months>=STALE_MONTHS?' stale':'');
+ el.innerHTML=`<span class="l">Last tested</span><span class="v">${sinceStr(HD.dates[idx],now)}</span>`; }
 
 /* ---------- status ---------- */
 function statusOf(th,v){ if(v==null)return 'na';
@@ -208,7 +229,8 @@ function inference(name,vals,th,unit,slots){const mi=measuredIdx(vals);if(mi.len
 
 /* ---------- renderers ---------- */
 function renderToggle(){document.getElementById('toggle').innerHTML=HD.profiles.map(p=>
-  `<button data-p="${p.id}" class="${p.id===person?'active':''}" onclick="setPerson('${p.id}')">${p.name} <span class="sub">(${p.age}/${(p.sex||'')[0]||''})</span></button>`).join('');}
+  `<button data-p="${p.id}" class="${p.id===person?'active':''}" onclick="setPerson('${p.id}')">${p.name} <span class="sub">(${p.age}/${(p.sex||'')[0]||''})</span></button>`).join('');
+  renderLastTest();}
 function populateReports(){let o='<option value="latest">Combined (latest)</option>';
  const p=prof();for(let i=HD.dates.length-1;i>=0;i--){const has=Object.values(p.params).some(x=>x.values[i]!=null);if(!has)continue;
   o+=`<option value="${i}">${lbl(HD.dates[i])} · ${p.labs[i]||''}</option>`;}
@@ -234,7 +256,7 @@ function healthCard(){
     <div class="hsl">Health Score<br><span>${p.name} · latest results</span></div></div>
     <div class="hs-grid">${chips}</div></div>`;
 }
-function renderLatest(){let html=healthCard()+'',map=paramsBySection();
+function renderLatest(){let html=healthCard()+'',map=paramsBySection();const now=Date.now();
  SECTIONS.forEach(sec=>{const rows=map[sec].filter(([n,p])=>lastMeasured(p).idx>=0);if(!rows.length)return;
   const sl=slug(sec),col=collapsed.has(sl);
   html+=`<div class="section sec-h" id="sec-${sl}" onclick="toggleSection('${sl}')">${sec} <span class="count">${rows.length}</span><span class="sec-caret" id="cr-${sl}">${col?'▸':'▾'}</span></div><div class="sec-body" id="sb-${sl}" ${col?'style="display:none"':''}><div class="card">`;
@@ -242,8 +264,11 @@ function renderLatest(){let html=healthCard()+'',map=paramsBySection();
    const desc=DESC[name]||'';
    const line2=stale?`${desc}${desc?' · ':''}<span style="color:var(--warning)">last measured ${shortDate(HD.dates[lm.idx])}</span>`:desc;
    const tap=hasTrend(name,p);
+   // per-parameter "time since last test" — only when this test is ≥6 months old
+   const sp=lm.idx>=0?sinceParts(HD.dates[lm.idx],now):null;
+   const sinceEl=(sp&&sp.months>=STALE_MONTHS)?`<div class="since stale"><span class="l">Tested</span><span class="v">${sp.months} m ${sp.days} d</span></div>`:'';
    html+=`<div class="row ${tap?'tappable':''}" ${tap?`onclick="gotoTrend('${slug(name)}')"`:''}>
-     <div class="name"><div class="t">${name} <span class="thr">${p.target} ${p.unit}</span></div><div class="r">${line2}</div></div>
+     <div class="name"><div class="txt"><div class="t">${name} <span class="thr">${p.target} ${p.unit}</span></div><div class="r">${line2}</div></div>${sinceEl}</div>
      ${sparkline(p.values,p.th)}
      <div class="val-wrap"><div class="val"><span class="v">${v}</span><span class="u">${p.unit}</span></div>${pill(p.th,v)}</div>
      <span class="chev">›</span></div>`;});
@@ -258,7 +283,7 @@ function renderReport(idx){let html='',map=paramsBySection(),p=prof(),total=0;
   rows.forEach(([name,pp])=>{const v=pp.values[idx],tap=hasTrend(name,pp);
    const desc=DESC[name]||'';
    html+=`<div class="row ${tap?'tappable':''}" ${tap?`onclick="gotoTrend('${slug(name)}')"`:''}>
-     <div class="name"><div class="t">${name} <span class="thr">${pp.target} ${pp.unit}</span></div><div class="r">${desc}</div></div>
+     <div class="name"><div class="txt"><div class="t">${name} <span class="thr">${pp.target} ${pp.unit}</span></div><div class="r">${desc}</div></div></div>
      <div class="val-wrap"><div class="val"><span class="v">${v}</span><span class="u">${pp.unit}</span></div>${pill(pp.th,v)}</div>
      <span class="chev">›</span></div>`;});
   html+='</div></div>';});

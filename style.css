@@ -42,6 +42,15 @@
   .toggle button.active{background:var(--series);color:#fff;}
   .toggle button.active .sub{color:rgba(255,255,255,.8);}
 
+  /* top row: person toggle + always-on "last tested" counter */
+  .toprow{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .lasttest{flex:none;display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;
+    background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:6px 11px;}
+  .lasttest .l{font-size:8.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);}
+  .lasttest .v{font-size:14px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .lasttest.stale{background:var(--warn-soft);border-color:rgba(250,178,25,.35);}
+  .lasttest.stale .v,.lasttest.stale .l{color:#ffcf6b;}
+
   /* meta line */
   .meta{display:flex;justify-content:space-between;align-items:center;padding:10px 16px 4px;font-size:12px;color:var(--muted);}
   .meta b{color:var(--ink-2);font-weight:600;}
@@ -63,9 +72,15 @@
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden;}
   .row{display:flex;align-items:center;gap:12px;padding:13px 14px;border-bottom:1px solid var(--border);}
   .row:last-child{border-bottom:0;}
-  .row .name{flex:1;min-width:0;}
+  .row .name{flex:1;min-width:0;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .row .name .txt{min-width:0;}
   .row .name .t{font-size:14.5px;font-weight:600;}
   .row .name .r{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  /* per-parameter "time since last test" — only shown when overdue (≥6 months) */
+  .since{flex:none;text-align:right;line-height:1.15;}
+  .since .l{display:block;font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);}
+  .since .v{display:block;font-size:12px;font-weight:700;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .since.stale .v,.since.stale .l{color:#ffcf6b;}
   .row .val{text-align:right;}
   .row .val .v{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;}
   .row .val .u{font-size:11px;color:var(--muted);margin-left:2px;font-weight:500;}
