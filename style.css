@@ -36,17 +36,20 @@
   /* person toggle */
   .toggle{display:inline-flex;background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:4px;gap:4px;}
   .toggle button{border:0;background:transparent;color:var(--ink-2);font-family:var(--font);
-    font-size:13.5px;font-weight:600;padding:8px 14px;border-radius:10px;cursor:pointer;
+    font-size:13px;font-weight:600;padding:8px 11px;border-radius:10px;cursor:pointer;
     display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
   .toggle button .sub{font-size:11px;font-weight:500;color:var(--muted);}
   .toggle button.active{background:var(--series);color:#fff;}
   .toggle button.active .sub{color:rgba(255,255,255,.8);}
 
-  /* top row: person toggle + always-on "last tested" counter */
-  .toprow{display:flex;align-items:center;justify-content:space-between;gap:10px;}
-  .lasttest{flex:none;display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;
-    background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:6px 11px;}
-  .lasttest .l{font-size:8.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);}
+  /* top row: person toggle + always-on "last tested" counter.
+     flex-wrap + margin-left:auto keeps the counter right-aligned and drops it to
+     its own line on very narrow phones instead of being clipped off-screen. */
+  .toprow{display:flex;align-items:center;flex-wrap:wrap;gap:8px;}
+  .toprow .toggle{flex:0 1 auto;}
+  .lasttest{flex:none;margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;line-height:1.12;
+    background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:5px 10px;}
+  .lasttest .l{font-size:8px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);white-space:nowrap;}
   .lasttest .v{font-size:14px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;}
   .lasttest.stale{background:var(--warn-soft);border-color:rgba(250,178,25,.35);}
   .lasttest.stale .v,.lasttest.stale .l{color:#ffcf6b;}

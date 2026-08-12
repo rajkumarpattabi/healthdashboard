@@ -136,16 +136,23 @@ function lbl(iso){const [y,m,d]=iso.split('-');return `${(+d)<10?'0':''}${+d} ${
 function shortDate(iso){const [y,m]=iso.split('-');return `${MON[+m-1]} ${y}`;}
 // ---- "time since last test" counter ----
 const DAY_MS=864e5;
-function sinceParts(fromIso,nowMs){ const f=new Date(ms(fromIso)),t=new Date(nowMs);
- let months=(t.getUTCFullYear()-f.getUTCFullYear())*12+(t.getUTCMonth()-f.getUTCMonth());
- let days=t.getUTCDate()-f.getUTCDate();
- if(days<0){ months--; days+=new Date(Date.UTC(t.getUTCFullYear(),t.getUTCMonth(),0)).getUTCDate(); }
- if(months<0){months=0;days=0;}
+// add one calendar month, clamping to the target month's last day (31 Jan -> 28/29 Feb)
+function addMonthUTC(d){ const y=d.getUTCFullYear(),m=d.getUTCMonth(),day=d.getUTCDate();
+ const lastDay=new Date(Date.UTC(y,m+2,0)).getUTCDate();            // days in month (m+1)
+ return new Date(Date.UTC(y,m+1,Math.min(day,lastDay))); }
+// whole calendar months + leftover days between two dates (never negative)
+function sinceParts(fromIso,nowMs){ const from=new Date(ms(fromIso)),to=new Date(nowMs);
  const totalDays=Math.max(0,Math.floor((nowMs-ms(fromIso))/DAY_MS));
+ if(to<=from) return {months:0,days:0,totalDays:0};
+ let months=0,cursor=from;
+ for(let next=addMonthUTC(cursor); next<=to; next=addMonthUTC(cursor)){ cursor=next; months++; }
+ const days=Math.max(0,Math.floor((to-cursor)/DAY_MS));
  return {months,days,totalDays}; }
-// "23 d" when under a month, else "1 m 18 d"
+// "23 d" under a month, "1 m 18 d" under a year, "2 y 5 m" for a year or more
 function sinceStr(fromIso,nowMs){ const p=sinceParts(fromIso,nowMs);
- return p.months<1?`${p.totalDays} d`:`${p.months} m ${p.days} d`; }
+ if(p.months<1) return `${p.totalDays} d`;
+ if(p.months<12) return `${p.months} m ${p.days} d`;
+ return `${Math.floor(p.months/12)} y ${p.months%12} m`; }
 const STALE_MONTHS=6;                    // per-parameter counter appears once a test is this old
 // most recent date (index) at which this person had any parameter measured
 function latestIdx(p){ let idx=-1; Object.values(p.params).forEach(pp=>{const lm=lastMeasured(pp); if(lm.idx>idx)idx=lm.idx;}); return idx; }
@@ -266,7 +273,7 @@ function renderLatest(){let html=healthCard()+'',map=paramsBySection();const now
    const tap=hasTrend(name,p);
    // per-parameter "time since last test" — only when this test is ≥6 months old
    const sp=lm.idx>=0?sinceParts(HD.dates[lm.idx],now):null;
-   const sinceEl=(sp&&sp.months>=STALE_MONTHS)?`<div class="since stale"><span class="l">Tested</span><span class="v">${sp.months} m ${sp.days} d</span></div>`:'';
+   const sinceEl=(sp&&sp.months>=STALE_MONTHS)?`<div class="since stale"><span class="l">Tested</span><span class="v">${sinceStr(HD.dates[lm.idx],now)}</span></div>`:'';
    html+=`<div class="row ${tap?'tappable':''}" ${tap?`onclick="gotoTrend('${slug(name)}')"`:''}>
      <div class="name"><div class="txt"><div class="t">${name} <span class="thr">${p.target} ${p.unit}</span></div><div class="r">${line2}</div></div>${sinceEl}</div>
      ${sparkline(p.values,p.th)}
