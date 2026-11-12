@@ -153,7 +153,7 @@ function sinceStr(fromIso,nowMs){ const p=sinceParts(fromIso,nowMs);
  if(p.months<1) return `${p.totalDays} d`;
  if(p.months<12) return `${p.months} m ${p.days} d`;
  return `${Math.floor(p.months/12)} y ${p.months%12} m`; }
-const STALE_MONTHS=6;                    // per-parameter counter appears once a test is this old
+const STALE_MONTHS=6;                    // overdue threshold: per-param counter appears, and both counters turn amber, once a test is this old
 // most recent date (index) at which this person had any parameter measured
 function latestIdx(p){ let idx=-1; Object.values(p.params).forEach(pp=>{const lm=lastMeasured(pp); if(lm.idx>idx)idx=lm.idx;}); return idx; }
 function renderLastTest(){ const el=document.getElementById('lastTest'); if(!el)return; const p=prof();
